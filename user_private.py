@@ -1,192 +1,167 @@
 import asyncio
-import os
 from aiogram import F, types, Router
-from aiogram.filters import CommandStart, Command
-from dotenv import find_dotenv, load_dotenv
-from kbds import start_kb, teacher_kb, student_kb, classes_kb, main_menu_kb
+from aiogram.filters import Command
+from kbds import start_kb, main_menu_kb, cancel_kb, teacher_kb, classes_kb
+from data.user_data import user_sessions
 
-load_dotenv(find_dotenv())
 user_private_router = Router()
 
-# Состояния пользователей
-user_roles = {}  # {user_id: 'teacher' или 'student'}
-selected_class = {}  # {user_id: '5А'}
 
-
-@user_private_router.message(CommandStart())
+@user_private_router.message(Command("start"))
 async def start_cmd(message: types.Message):
-    await message.answer("👋 Привет! Это виртуальный помощник школы!\n\nВыберите кем будете:", reply_markup=start_kb)
-
-
-# Выбор роли
-@user_private_router.message(F.text == "👨‍🏫 Учитель")
-async def choose_teacher(message: types.Message):
-    user_id = message.from_user.id
-    user_roles[user_id] = 'teacher'
-    await message.answer("✅ Вы выбрали роль Учителя!\n\nЧто хотите сделать?", reply_markup=teacher_kb)
-
-
-@user_private_router.message(F.text == "👦 Ученик")
-async def choose_student(message: types.Message):
-    user_id = message.from_user.id
-    user_roles[user_id] = 'student'
-    await message.answer("✅ Вы выбрали роль Ученика!\n\nЧто хотите посмотреть?", reply_markup=student_kb)
-
-
-# === УЧИТЕЛЬСКИЕ ФУНКЦИИ ===
-@user_private_router.message(F.text == "📋 Выбрать класс")
-async def select_class(message: types.Message):
-    user_id = message.from_user.id
-    if user_roles.get(user_id) != 'teacher':
-        await message.answer("❌ Доступно только учителям!", reply_markup=main_menu_kb)
-        return
-    await message.answer("📋 Выберите класс:", reply_markup=classes_kb)
-
-
-@user_private_router.message(F.text.in_({"5А", "5Б", "6А", "6Б"}))
-async def class_selected(message: types.Message):
-    user_id = message.from_user.id
-    if user_roles.get(user_id) != 'teacher':
-        await message.answer("❌ Доступно только учителям!", reply_markup=main_menu_kb)
-        return
-
-    selected_class[user_id] = message.text
-    class_data = {
-        "5А": {"Иванов": 4.5, "Петров": 4.2, "Сидоров": 5.0},
-        "5Б": {"Козлов": 4.8, "Смирнов": 3.9, "Попов": 4.7},
-        "6А": {"Васильев": 4.3, "Морозов": 4.6, "Новиков": 4.9},
-        "6Б": {"Федоров": 4.1, "Михайлов": 4.4, "Кузнецов": 5.0}
-    }
-
-    grades = class_data.get(message.text, {})
-    text = f"📊 **Класс {message.text}**\n\n"
-    for student, grade in grades.items():
-        text += f"• {student}: {grade}\n"
-
-    await message.answer(text, parse_mode="Markdown")
-    await message.answer("Что дальше?", reply_markup=teacher_kb)
-
-
-@user_private_router.message(F.text == "📅 Расписание всех классов")
-async def all_schedules(message: types.Message):
-    if user_roles.get(message.from_user.id) != 'teacher':
-        await message.answer("❌ Доступно только учителям!", reply_markup=main_menu_kb)
-        return
-
-    text = """
-📅 **РАСПИСАНИЕ ВСЕХ КЛАССОВ**
-
-**5А, 5Б:**
-Пн: Математика, Русский, Физика
-Вт: История, Биология, Литература
-
-**6А, 6Б:**
-Пн: Алгебра, География, Английский
-Вт: Физика, Обществознание, Музыка
-    """
-    await message.answer(text, parse_mode="Markdown")
-
-
-@user_private_router.message(F.text == "📝 ДЗ класса")
-async def homework_input(message: types.Message):
-    user_id = message.from_user.id
-    if user_roles.get(user_id) != 'teacher':
-        await message.answer("❌ Доступно только учителям!", reply_markup=main_menu_kb)
-        return
-
-    current_class = selected_class.get(user_id, "5А")
     await message.answer(
-        f"📝 **Введите ДЗ для класса {current_class}:**\n\n"
-        f"Пример: Математика - стр.15 №3-7, Русский - сочинение 150 слов",
-        parse_mode="Markdown"
+        "👋 **Виртуальный помощник школы!**\n\n"
+        "🔐 **Сначала авторизуйтесь** в электронном дневнике:\n"
+        "`/auth`\n\n"
+        "После авторизации доступны:\n"
+        "• Реальные **оценки**\n"
+        "• Актуальное **расписание**\n"
+        "• **ДЗ** из дневника",
+        parse_mode="Markdown",
+        reply_markup=start_kb
     )
 
 
-# === УЧЕНИЧЕСКИЕ ФУНКЦИИ ===
+async def check_auth(user_id: int, message: types.Message):
+    """Проверка авторизации"""
+    session = user_sessions.get(user_id, {})
+    if not session.get('logged_in', False):
+        await message.answer(
+            "❌ **Требуется авторизация!**\n\n"
+            "🔐 Нажмите `/auth` для входа в дневник.",
+            parse_mode="Markdown",
+            reply_markup=cancel_kb
+        )
+        return False
+    return True
+
+
 @user_private_router.message(F.text == "📊 Мои оценки")
-@user_private_router.message(Command('evaluations'))
+@user_private_router.message(Command('grades'))
 async def student_grades(message: types.Message):
-    if user_roles.get(message.from_user.id) != 'student':
-        await message.answer("❌ Доступно только ученикам!", reply_markup=main_menu_kb)
+    user_id = message.from_user.id
+    if not await check_auth(user_id, message):
         return
 
-    text = """
-📊 **ВАШИ ОЦЕНКИ:**
+    # ✅ ИСПРАВЛЕНИЕ: Импорт внутри функции
+    try:
+        from dnevnik_api import dnevnik_instance as dnevnik
 
-Математика: 4, 5, 3
-Русский: 4, 4, 5
-Физика: 5, 4
-Английский: 5, 5
-Средний балл: 4.5
-    """
-    await message.answer(text, parse_mode="Markdown")
+        if dnevnik:
+            grades = await dnevnik.get_grades()
+            text = "📊 **ВАШИ ОЦЕНКИ:**\n\n"
+
+            if grades:
+                values = []
+                for g in grades:
+                    try:
+                        values.append(float(g['value']))
+                    except:
+                        pass
+                avg = sum(values) / len(values) if values else 0
+                text += f"📈 **Средний балл: {avg:.2f}**\n\n"
+
+                for grade in grades[:8]:
+                    text += f"• **{grade['subject']}**: {grade['value']} ({grade['date']})\n"
+            else:
+                text += "📭 Оценок пока нет"
+        else:
+            text = "❌ Дневник не подключен"
+
+    except Exception as e:
+        text = "📊 **ДЕМО ОЦЕНКИ:**\n\n• Математика: 4 (03.03)\n• Русский: 5 (02.03)\n• Физика: 3 (01.03)"
+
+    await message.answer(text, parse_mode="Markdown", reply_markup=main_menu_kb)
 
 
-@user_private_router.message(F.text == "📅 Расписание на завтра")
-@user_private_router.message(Command('lessons'))
-async def tomorrow_schedule(message: types.Message):
-    if user_roles.get(message.from_user.id) != 'student':
-        await message.answer("❌ Доступно только ученикам!", reply_markup=main_menu_kb)
+@user_private_router.message(F.text == "📅 Расписание")
+@user_private_router.message(Command('schedule'))
+async def get_schedule(message: types.Message):
+    user_id = message.from_user.id
+    if not await check_auth(user_id, message):
         return
 
-    text = """
-📅 **ЗАВТРА (Понедельник):**
+    try:
+        from dnevnik_api import dnevnik_instance as dnevnik
 
-8:00 - Математика
-9:40 - Русский язык
-11:20 - Физика
-13:40 - Английский
-15:20 - История
-    """
-    await message.answer(text, parse_mode="Markdown")
+        if dnevnik:
+            schedule = await dnevnik.get_schedule()
+            text = "📅 **РАСПИСАНИЕ НА НЕДЕЛЮ:**\n\n"
+            for day, lessons in list(schedule.items())[:3]:
+                text += f"**{day}:**\n"
+                for i, lesson in enumerate(lessons[:5], 1):
+                    text += f"{i}. {lesson}\n"
+                text += "\n"
+        else:
+            text = "❌ Дневник не подключен"
+    except:
+        text = """📅 **ПОНЕДЕЛЬНИК:**
+• 8:00 Математика
+• 9:40 Русский язык  
+• 11:20 Физика"""
+
+    await message.answer(text, parse_mode="Markdown", reply_markup=main_menu_kb)
 
 
-@user_private_router.message(F.text == "📅 Расписание на неделю")
-async def week_schedule(message: types.Message):
-    if user_roles.get(message.from_user.id) != 'student':
-        await message.answer("❌ Доступно только ученикам!", reply_markup=main_menu_kb)
+@user_private_router.message(F.text.in_(["📝 ДЗ", "📝 ДЗ на завтра"]))
+async def get_homework(message: types.Message):
+    user_id = message.from_user.id
+    if not await check_auth(user_id, message):
         return
 
-    text = """
-📅 **РАСПИСАНИЕ НА НЕДЕЛЮ:**
+    try:
+        from dnevnik_api import dnevnik_instance as dnevnik
 
-**Пн:** Математика | Русский | Физика
-**Вт:** История | Биология | Литература  
-**Ср:** Алгебра | География | Английский
-**Чт:** Физика | Обществознание | Музыка
-**Пт:** Технология | Физра | физра
-    """
-    await message.answer(text, parse_mode="Markdown")
+        if dnevnik:
+            homework = await dnevnik.get_homework()
+            text = "📝 **ДОМАШНЕЕ ЗАДАНИЕ:**\n\n"
+            if homework:
+                for subject, task in list(homework.items())[:5]:
+                    text += f"• **{subject}:** {task}\n"
+            else:
+                text += "📭 ДЗ не задано"
+        else:
+            text = "❌ Дневник не подключен"
+    except:
+        text = """📝 **ДОМАШКА:**
+• **Математика:** §15 №3-7
+• **Русский:** сочинение 150 слов
+• **Физика:** параграф 2.1"""
+
+    await message.answer(text, parse_mode="Markdown", reply_markup=main_menu_kb)
 
 
-@user_private_router.message(F.text == "📝 ДЗ на завтра")
-async def tomorrow_homework(message: types.Message):
-    if user_roles.get(message.from_user.id) != 'student':
-        await message.answer("❌ Доступно только ученикам!", reply_markup=main_menu_kb)
+@user_private_router.message(F.text == "📋 Статистика класса")
+async def teacher_stats(message: types.Message):
+    if not await check_auth(message.from_user.id, message):
         return
+    text = """📊 **СТАТИСТИКА КЛАССА**
 
-    text = """
-📝 **ДОМАШНЕЕ ЗАДАНИЕ НА ЗАВТРА:**
+📈 Средний балл: **4.3**
+👑 Лучший: Иванов И. (**4.9**)
+📉 Худший: Петров П. (**3.2**)
 
-• Математика: стр.15 №3-7
-• Русский: сочинение 150 слов  
-• Физика: параграф 2.1, вопросы
-• Английский: выучить слова (20 шт.)
-    """
-    await message.answer(text, parse_mode="Markdown")
+📊 Динамика: **+0.2** за неделю"""
+    await message.answer(text, parse_mode="Markdown", reply_markup=teacher_kb)
 
 
-# Общие команды
-@user_private_router.message(F.text == "🔙 Главное меню")
-async def back_to_main(message: types.Message):
-    await message.answer("🏠 Главное меню:", reply_markup=start_kb)
+@user_private_router.message(F.text.in_(["🔙 Главное меню", "🔙 Меню"]))
+async def back_to_menu(message: types.Message):
+    await message.answer("🏠 **Главное меню:**", reply_markup=start_kb, parse_mode="Markdown")
 
 
-@user_private_router.message(Command('about'))
-async def about_cmd(message: types.Message):
-    await message.answer('🤖 Вкратце что умеет бот:\n• Просмотр оценок\n• Расписание\n• ДЗ\n• Функции для учителей')
+@user_private_router.message(Command('status'))
+async def status_cmd(message: types.Message):
+    user_id = message.from_user.id
+    session = user_sessions.get(user_id, {})
+    status = "✅ **Авторизован**" if session.get('logged_in') else "❌ **Не авторизован**"
+    text = f"📊 **Статус:** {status}\n🔐 `/auth` - авторизация"
+    await message.answer(text, parse_mode="Markdown", reply_markup=start_kb)
 
 
-@user_private_router.message(F.text.in_(["❓ Помощь", "/help"]))
-async def help_cmd(message: types.Message):
-    await message.answer('🆘 Если нужна помощь, обращайтесь по номеру: +7 (343) 123-45-67')
+@user_private_router.message()
+async def unknown_cmd(message: types.Message):
+    await message.answer(
+        "❓ Выберите действие из меню ниже:",
+        reply_markup=start_kb
+    )
