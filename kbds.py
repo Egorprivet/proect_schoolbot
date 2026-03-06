@@ -1,50 +1,47 @@
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, KeyboardButtonPollType
-from aiogram.utils.keyboard import ReplyKeyboardBuilder
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 
-# Главная клавиатура
+# Клавиатуры для бота
 start_kb = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text='👨‍🏫 Учитель'), KeyboardButton(text='👦 Ученик')],
-        [KeyboardButton(text='❓ Помощь')]
-    ],
+        [KeyboardButton(text="🔐 Авторизоваться в дневнике")],
+
+    ], 
     resize_keyboard=True,
-    persistent=True
+    one_time_keyboard=False
 )
 
-# Клавиатура для учителя
-teacher_kb = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text='📋 Выбрать класс'), KeyboardButton(text='📅 Расписание всех классов')],
-        [KeyboardButton(text='📝 ДЗ класса'), KeyboardButton(text='🔙 Главное меню')]
-    ],
-    resize_keyboard=True
-)
-
-# Клавиатура для ученика
-student_kb = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text='📊 Мои оценки'), KeyboardButton(text='📅 Расписание на завтра')],
-        [KeyboardButton(text='📅 Расписание на неделю'), KeyboardButton(text='📝 ДЗ на завтра')],
-        [KeyboardButton(text='🔙 Главное меню')]
-    ],
-    resize_keyboard=True
-)
-
-# Клавиатура классов для учителя
-classes_kb = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text='5А'), KeyboardButton(text='5Б')],
-        [KeyboardButton(text='6А'), KeyboardButton(text='6Б')],
-        [KeyboardButton(text='🔙 Главное меню')]
-    ],
-    resize_keyboard=True
-)
-
-# Главное меню
 main_menu_kb = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text='👨‍🏫 Учитель'), KeyboardButton(text='👦 Ученик')],
-        [KeyboardButton(text='🔙 Главное меню')]
-    ],
+        [KeyboardButton(text="📊 Мои оценки"), KeyboardButton(text="📅 Расписание")],
+        [KeyboardButton(text="📝 ДЗ на завтра"), KeyboardButton(text="🔐 Повторить авторизацию")],
+        [KeyboardButton(text="🔙 Главное меню")]
+    ], 
     resize_keyboard=True
 )
+
+cancel_kb = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="❌ Отмена")]
+    ], 
+    resize_keyboard=True,
+    one_time_keyboard=True
+)
+
+teacher_kb = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="📋 Статистика класса"), KeyboardButton(text="📅 Расписание всех классов")],
+        [KeyboardButton(text="📝 ДЗ класса"), KeyboardButton(text="🔐 Повторить авторизацию")],
+        [KeyboardButton(text="🔙 Главное меню")]
+    ], 
+    resize_keyboard=True
+)
+
+classes_kb = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="8А"), KeyboardButton(text="8Б")],
+        [KeyboardButton(text="7А"), KeyboardButton(text="10Б")],
+        [KeyboardButton(text="❌ Отмена")]
+    ], 
+    resize_keyboard=True
+)
+
